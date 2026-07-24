@@ -1,0 +1,73 @@
+name: GitHub Actions Practice Workflow
+
+# Триггеры: ручной запуск и автоматический при пуше
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  # ----------------------------------------------------
+  # Джоба 1: Сборка, работа с секретами и артефактами
+  # ----------------------------------------------------
+  build_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Чеккаут кода
+        uses: actions/checkout@v4
+
+      # 1. Работа с секретами (в логах и в файле)
+      - name: Демонстрация работы с секретом
+        env:
+          MY_SECRET: ${{ secrets.MY_PRACTICE_SECRET }}
+        run: |
+          echo "1. Вывод секрета напрямую в лог:"
+          echo "Значение секрета: $MY_SECRET"
+          
+          echo "2. Запись секрета в файл:"
+          echo "Secret value inside file: $MY_SECRET" > secret_file.txt
+          
+          echo "3. Попытка прочитать файл с секретом через cat:"
+          cat secret_file.txt
+
+      # 2. Создание файла и загрузка Артефакта
+      - name: Создание тестового артефакта
+        run: |
+          mkdir -p build_output
+          echo "Этот файл создан в build_job на этапе сборки." > build_output/result.txt
+
+      - name: Загрузка артефакта (Upload Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-build-artifact
+          path: build_output/result.txt
+          retention-days: 1
+
+  # ----------------------------------------------------
+  # Джоба 2: Падение (для реакции) и работа со статусами
+  # ----------------------------------------------------
+  test_and_fail_job:
+    needs: build_job # Выполняется строго после первой джобы
+    runs-on: ubuntu-latest
+    steps:
+      - name: Чеккаут кода
+        uses: actions/checkout@v4
+
+      # Скачивание артефакта из предыдущей джобы 
+      - name: Скачивание артефакта (Download Artifact)
+        uses: actions/download-artifact@v4
+        with:
+          name: my-build-artifact
+          path: downloaded_output
+
+      - name: Проверка скачанного артефакта
+        run: cat downloaded_output/result.txt
+
+      # 3. Намеренное падение джобы
+      - name: Имитация ошибки (Fail Step)
+        run: |
+          echo "Сейчас произойдет ошибка выполнения!"
+          exit 1 # Код возврата != 0 роняет джобу
+
+      - name: Шаг, который НЕ выполнится
+        run: echo "Этот шаг пропустится из-за падения предыдущего!"
